@@ -80,7 +80,7 @@ For actual PostgreSQL, install PostgreSQL locally or use a disposable developmen
 
 [001_schema.sql](migrations/001_schema.sql) creates customers, orders and invoices, with constraints and indexes. A composite foreign key prevents invoices from pointing at another customer's order. [002_demo_seed.sql](migrations/002_demo_seed.sql) inserts only invented data.
 
-The migration runner uses a transaction, PostgreSQL advisory lock and a version/checksum table. Re-running it does not duplicate rows. Changing an already-applied migration raises an error; add a new migration instead. This demo has forward migrations only. The bootstrap step grants SELECT only on the three data tables and defaults the reader role to read-only transactions. Tests explicitly try write transactions to check that missing table privileges still prevent writes.
+The migration runner uses a transaction, PostgreSQL advisory lock and a version/checksum table. Re-running it does not duplicate rows. Changing an already-applied migration raises an error; add a new migration instead. This demo has forward migrations only. Bootstrap revokes old table/schema privileges before granting SELECT on the three data tables and defaults the reader role to read-only transactions. It rejects unsafe reuse of elevated/member/owner roles. Tests deliberately grant an accidental write permission, run bootstrap again, and verify the permission is removed. Tests also try write transactions to check that missing table privileges prevent writes independently of the read-only default.
 
 ## Agent interface
 
@@ -98,7 +98,25 @@ GitHub Actions builds the image on its hosted runner, creates kind, loads the im
 
 ## Results
 
-The implementation is being verified. The current local Python result is 35 passed tests; 7 real PostgreSQL checks require CI. All 40 TypeScript tests, including actual HTTP against the local SQLite sandbox, passed. Details are recorded in [docs/RESULTS.md](docs/RESULTS.md). This section will be updated with actual remote counts and proxy outcomes after the final CI run. The badge reports GitHub's current workflow state, not a fabricated result.
+Verified on 24 October 2026 through [CI run 40033618850](https://github.com/hamza2829/ai-agent-api-k8s/actions/runs/40033618850), tested implementation commit `5eaddcb`. Docker build and kind ran on GitHub's hosted runner. No local Docker was used.
+
+| Check | Actual result |
+| --- | --- |
+| Python tests, including 7 real PostgreSQL checks | 42 passed, 0 failed, 0 skipped |
+| TypeScript tests, including scripted agent over real HTTP/PostgreSQL | 40 passed, 0 failed, 0 skipped |
+| Image build, kind deployment and migrations | Successful |
+| Proxy smoke checks | 8 passed, 0 failed |
+| API, nginx and PostgreSQL | All 1/1 ready, zero restarts |
+| Health, readiness and authenticated order read | HTTP 200, expected 3 fake orders returned |
+| Missing key / wrong customer / invalid limit | HTTP 401 / 403 / 422 |
+| Burst of 24 requests | 4 HTTP 200, 20 HTTP 429 |
+| Security headers on success and rejected calls | Passed |
+
+The local Python run passed 35 tests and skipped the 7 PostgreSQL checks because no local PostgreSQL server was configured. All 40 TypeScript tests also passed locally against the SQLite sandbox. CI supplied the separate PostgreSQL and Kubernetes verification.
+
+The initial deployment had one transient readiness 502 while the upstream API was starting; readiness recovered before smoke tests and no restart was needed. The final run had no startup 502. Restricted Windows loopback access initially blocked local tests, and review found the reused-role grant issue that is now fixed and regression tested. Both completed CI runs had zero test or smoke failures. These details and the initial run remain in [docs/RESULTS.md](docs/RESULTS.md).
+
+Persistent result copies: [Python counts](docs/results/python-results.json), [proxy smoke report](docs/results/smoke.json) and [verification metadata](docs/results/ci-verification.json). Full [test evidence](https://github.com/hamza2829/ai-agent-api-k8s/actions/runs/40033618850/artifacts/12536276380) and [cluster logs](https://github.com/hamza2829/ai-agent-api-k8s/actions/runs/40033618850/artifacts/12536840092) are GitHub artifacts with 14-day retention. The kind cluster was deleted after verification; this is not a permanently hosted API.
 
 ## Limits and what I would change
 
@@ -115,3 +133,9 @@ The implementation is being verified. The current local Python result is 35 pass
 ## Reproduction and screenshots
 
 Follow [docs/STEPS.md](docs/STEPS.md) in order. It names the screenshot to take after each meaningful check. Screenshots are a checklist until you capture them from real runs. CI logs and artifacts provide machine-generated evidence separately.
+
+## CV bullets, actual work only
+
+- Ich habe eine FastAPI-Schnittstelle mit PostgreSQL-Migrationen, API-Key-Authentifizierung und kundengebundenem Lesezugriff implementiert.
+- Ich habe eine TypeScript-Toolschnittstelle mit vier fest vorgegebenen Leseaktionen erstellt und einen geskripteten Agentenaufruf gegen die PostgreSQL-gestützte API getestet.
+- Ich habe 42 Python- und 40 TypeScript-Tests sowie acht Smoke-Prüfungen einer Kubernetes-Bereitstellung mit nginx in GitHub Actions erfolgreich ausgeführt.

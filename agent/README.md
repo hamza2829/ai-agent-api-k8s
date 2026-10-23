@@ -11,10 +11,10 @@ npm ci
 npm test
 ```
 
-The real HTTP test is explicitly skipped when `API_BASE_URL` is absent. Unit tests use a mocked HTTP transport. To include the real API test, first start and seed the FastAPI service with PostgreSQL using the root instructions. Then:
+The real HTTP test is explicitly skipped when `API_BASE_URL` is absent. Unit tests use a mocked HTTP transport. To include the real API test, first start the SQLite sandbox or PostgreSQL-backed FastAPI service using the root instructions. CI uses PostgreSQL. Then:
 
 ```powershell
-$env:API_BASE_URL = "http://127.0.0.1:8000"
+$env:API_BASE_URL = "http://127.0.0.1:8080"
 $env:API_KEY = "demo-only-key-change-me-123456"
 npm test
 npm run demo

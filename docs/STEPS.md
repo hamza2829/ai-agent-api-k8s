@@ -82,7 +82,16 @@ $env:READ_DB_PASSWORD = "<your-demo-reader-password>"
 .\.venv\Scripts\python.exe -m agent_api.migrate --demo-bootstrap
 ```
 
-Replace placeholders. The database must exist first. After migration run the API with the `agent_reader` connection, not the owner connection. You can skip this local PostgreSQL setup: CI provisions and checks the real server automatically.
+Replace placeholders. The database must exist first. Stop the SQLite sandbox with Ctrl+C before using its port for this PostgreSQL-backed API. In the API terminal set:
+
+```powershell
+$env:DATABASE_URL = "postgresql+psycopg://agent_reader:<your-demo-reader-password>@127.0.0.1:5432/customer_demo"
+$env:API_KEY = "demo-only-key-change-me-123456"
+$env:ALLOWED_CUSTOMER_IDS = "cus_001"
+.\.venv\Scripts\python.exe -m uvicorn agent_api.main:app --host 127.0.0.1 --port 8080 --no-access-log
+```
+
+Run the scripted-agent commands from step 5 in another terminal. The API uses the reader connection, not the owner connection. You can skip this local PostgreSQL setup: CI provisions and checks the real server automatically.
 
 **Screenshot:** `06-read-only-design.png`, showing a tool definition and the database reader grants.
 

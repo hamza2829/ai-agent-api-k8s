@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-10-23T22:29:03.657094+00:00",
+  "base_url": "http://127.0.0.1:8080",
+  "passed": 8,
+  "failed": 0,
+  "checks": [
+    {
+      "check": "health",
+      "passed": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "check": "database_readiness",
+      "passed": true,
+      "detail": {
+        "status": 200
+      }
+    },
+    {
+      "check": "authenticated_orders",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "expected_rows": 3
+      }
+    },
+    {
+      "check": "missing_key_rejected",
+      "passed": true,
+      "detail": {
+        "status": 401
+      }
+    },
+    {
+      "check": "customer_scope_rejected",
+      "passed": true,
+      "detail": {
+        "status": 403
+      }
+    },
+    {
+      "check": "bad_input_rejected",
+      "passed": true,
+      "detail": {
+        "status": 422
+      }
+    },
+    {
+      "check": "security_headers_on_success_and_error",
+      "passed": true,
+      "detail": {
+        "checked_headers": [
+          "x-content-type-options",
+          "x-frame-options",
+          "referrer-policy",
+          "content-security-policy",
+          "x-request-id"
+        ]
+      }
+    },
+    {
+      "check": "proxy_rate_limit",
+      "passed": true,
+      "detail": {
+        "200": 4,
+        "429": 20
+      }
+    }
+  ]
+}

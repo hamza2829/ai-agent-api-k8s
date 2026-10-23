@@ -1,0 +1,38 @@
+{
+  "repository": "https://github.com/hamza2829/ai-agent-api-k8s",
+  "run_url": "https://github.com/hamza2829/ai-agent-api-k8s/actions/runs/40033618850",
+  "implementation_commit": "5eaddcb8e19b4c2c28f0fc62f8da2e4e01eb8692",
+  "conclusion": "success",
+  "python": {
+    "passed": 42,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typescript": {
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0
+  },
+  "proxy_smoke": {
+    "passed": 8,
+    "failed": 0,
+    "burst_requests": 24,
+    "http_200": 4,
+    "http_429": 20
+  },
+  "ci_jobs_seconds": {
+    "tests": 42,
+    "kind": 117
+  },
+  "deployment": {
+    "api_ready": 1,
+    "nginx_ready": 1,
+    "postgres_ready": 1,
+    "restarts": 0,
+    "migration_complete": true,
+    "cluster_deleted_after_run": true
+  },
+  "local_docker_used": false,
+  "model": "scripted, no paid API",
+  "initial_run_url": "https://github.com/hamza2829/ai-agent-api-k8s/actions/runs/40033163701"
+}
