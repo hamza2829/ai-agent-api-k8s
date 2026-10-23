@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: agent-demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_DB
+              value: customer_demo
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secrets
+                  key: postgres-password
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, postgres, -d, customer_demo]
+            initialDelaySeconds: 3
+            periodSeconds: 3
+          livenessProbe:
+            exec:
+              command: [pg_isready, -U, postgres, -d, customer_demo]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: database
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: database
+          emptyDir: {} # Disposable cluster: deleting the pod removes its data.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: agent-demo
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: postgres

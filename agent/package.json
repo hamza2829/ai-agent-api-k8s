@@ -1,0 +1,19 @@
+{
+  "name": "ai-agent-api-k8s-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only function-calling interface and scripted model demonstration",
+  "engines": { "node": ">=22 <23" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "test:e2e": "npm run build && node --test dist/test/e2e.test.js",
+    "demo": "npm run build && node dist/src/demo.js",
+    "schemas": "npm run build --silent && node dist/src/print-schemas.js"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "typescript": "5.8.3"
+  }
+}

@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Python and scripted agent tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: customer_demo
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: demo-postgres-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d customer_demo"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://agent_reader:read_password@127.0.0.1:5432/customer_demo
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:demo-postgres-password@127.0.0.1:5432/customer_demo
+      TEST_READ_DATABASE_URL: postgresql+psycopg://agent_reader:read_password@127.0.0.1:5432/customer_demo
+      READ_DB_PASSWORD: read_password
+      API_KEY: demo-only-key-change-me-123456
+      ALLOWED_CUSTOMER_IDS: cus_001
+      API_BASE_URL: http://127.0.0.1:8080
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: agent/package-lock.json
+      - name: Install dependencies without local Docker
+        run: |
+          python -m pip install -e ".[dev]"
+          npm ci --prefix agent
+          mkdir -p artifacts
+      - name: Migrate and seed PostgreSQL, create SELECT-only role
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:demo-postgres-password@127.0.0.1:5432/customer_demo
+        run: python -m agent_api.migrate --demo-bootstrap
+      - name: Python unit and real PostgreSQL integration tests
+        run: python -m pytest -q --junitxml=artifacts/pytest.xml
+      - name: Run HTTP service for scripted model test
+        run: |
+          uvicorn agent_api.main:app --host 127.0.0.1 --port 8080 --no-access-log > artifacts/api.log 2>&1 &
+          echo $! > artifacts/api.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/ready; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/api.log
+          exit 1
+      - name: TypeScript unit and scripted agent end to end tests
+        run: npm test --prefix agent 2>&1 | tee artifacts/typescript.log
+      - name: Test summary
+        if: always()
+        run: python scripts/ci-summary.py tests
+      - name: Upload test results and redacted request logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: artifacts/
+          retention-days: 14
+
+  kind:
+    name: Image and Kubernetes proxy smoke test
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      API_KEY: demo-only-key-change-me-123456
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install pinned kind and kubectl with official checksum verification
+        run: |
+          curl --fail --location --silent --show-error https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-amd64 -o kind-linux-amd64
+          curl --fail --location --silent --show-error https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-amd64.sha256sum -o kind-linux-amd64.sha256sum
+          sha256sum --check kind-linux-amd64.sha256sum
+          sudo install kind-linux-amd64 /usr/local/bin/kind
+          curl --fail --location --silent --show-error https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl -o kubectl
+          curl --fail --location --silent --show-error https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl.sha256 -o kubectl.sha256
+          printf '%s  kubectl\n' "$(cat kubectl.sha256)" | sha256sum --check
+          sudo install kubectl /usr/local/bin/kubectl
+      - name: Build image on the hosted runner
+        run: docker build -t ai-agent-api-k8s:ci .
+      - name: Create disposable Kubernetes cluster and load image
+        run: |
+          kind create cluster --name agent-demo --config deploy/kind.yaml --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a --wait 120s
+          kind load docker-image ai-agent-api-k8s:ci --name agent-demo
+      - name: Deploy database and run migrations before the API
+        run: |
+          kubectl apply -f deploy/namespace.yaml
+          kubectl apply -f deploy/secret.demo.yaml -f deploy/configmap.yaml -f deploy/postgres.yaml
+          kubectl rollout status deployment/postgres -n agent-demo --timeout=120s
+          kubectl apply -f deploy/migrate.yaml
+          kubectl wait --for=condition=complete job/migrate -n agent-demo --timeout=180s
+      - name: Apply kustomize manifests and wait for readiness
+        run: |
+          kubectl apply -k deploy
+          kubectl rollout status deployment/api -n agent-demo --timeout=120s
+          kubectl rollout status deployment/nginx -n agent-demo --timeout=120s
+      - name: Smoke test through nginx, including denied calls and rate limiting
+        run: python scripts/smoke.py --base-url http://127.0.0.1:8080 --output artifacts/smoke.json
+      - name: Collect Kubernetes diagnostics on success or failure
+        if: always()
+        run: bash scripts/collect-logs.sh
+      - name: Kubernetes smoke summary
+        if: always()
+        run: python scripts/ci-summary.py smoke
+      - name: Upload smoke results and cluster logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kind-smoke-logs
+          path: artifacts/
+          retention-days: 14
+      - name: Delete disposable cluster
+        if: always()
+        run: kind delete cluster --name agent-demo

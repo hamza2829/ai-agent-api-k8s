@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.pytest-temp*/
+.env
+*.db
+node_modules/
+agent/dist/
+reports/
+artifacts/
+tmp/
+deploy/secret.local.yaml

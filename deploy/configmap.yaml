@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: agent-demo
+data:
+  ALLOWED_CUSTOMER_IDS: cus_001
+  RATE_LIMIT: "60"
