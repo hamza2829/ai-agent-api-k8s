@@ -22,7 +22,7 @@ Use Node 22. On Linux/macOS use `python3.12` to create the environment and `.ven
 .\.venv\Scripts\python.exe -m pytest -q --basetemp .pytest-temp
 ```
 
-Without TEST_DATABASE_URL the 6 actual PostgreSQL tests are skipped explicitly. The SQLite tests cover API behavior, not PostgreSQL roles. The current local result is 34 passed and 6 skipped. A restricted terminal may require loopback access for FastAPI TestClient.
+Without TEST_DATABASE_URL the 7 actual PostgreSQL tests are skipped explicitly. The SQLite tests cover API behavior, not PostgreSQL roles. The current local result is 35 passed and 7 skipped. A restricted terminal may require loopback access for FastAPI TestClient.
 
 **Screenshot:** `02-pytest-local.png`, including counts, skips and any failures.
 

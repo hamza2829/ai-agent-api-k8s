@@ -17,6 +17,7 @@ from sqlalchemy.exc import DBAPIError
 from agent_api.config import Settings
 from agent_api.database import Database
 from agent_api.main import create_app
+from agent_api.migrate import migrate
 
 from conftest import API_KEY
 
@@ -61,6 +62,50 @@ def test_postgres_reader_defaults_to_read_only_transactions(migrated_postgres):
     _, _, reader_engine = migrated_postgres
     with reader_engine.connect() as connection:
         assert connection.execute(text("SHOW default_transaction_read_only")).scalar_one() == "on"
+
+
+def test_bootstrap_removes_accidental_existing_write_grant(migrated_postgres):
+    owner_url, _, reader_engine = migrated_postgres
+    owner_engine = create_engine(owner_url)
+    try:
+        with owner_engine.begin() as connection:
+            connection.execute(text("GRANT INSERT ON customers TO agent_reader"))
+            connection.execute(text("GRANT CREATE ON SCHEMA public TO agent_reader"))
+        with reader_engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT has_table_privilege(current_user, 'customers', 'INSERT')")
+            ).scalar_one() is True
+
+        migrate(
+            database_url=owner_url,
+            demo_bootstrap=True,
+            read_password=os.environ.get("READ_DB_PASSWORD", "demo-reader-password-2026"),
+        )
+
+        with reader_engine.connect() as connection:
+            privileges = connection.execute(text("""SELECT
+                has_table_privilege(current_user, 'customers', 'INSERT') AS can_insert,
+                has_table_privilege(current_user, 'customers', 'SELECT') AS can_select,
+                has_schema_privilege(current_user, 'public', 'CREATE') AS can_create
+            """)).mappings().one()
+            assert privileges["can_insert"] is False
+            assert privileges["can_select"] is True
+            assert privileges["can_create"] is False
+            connection.rollback()
+            connection.execute(text("SET TRANSACTION READ WRITE"))
+            with pytest.raises(DBAPIError) as error:
+                connection.execute(text(
+                    "INSERT INTO customers (id, name, tier) VALUES ('cus_999', 'Forbidden customer', 'standard')"
+                ))
+            sqlstate = getattr(error.value.orig, "sqlstate", None) or getattr(error.value.orig, "pgcode", None)
+            assert sqlstate == "42501"
+            connection.rollback()
+    finally:
+        # Leave the shared disposable test database restricted even on failure.
+        with owner_engine.begin() as connection:
+            connection.execute(text("REVOKE INSERT ON customers FROM agent_reader"))
+            connection.execute(text("REVOKE CREATE ON SCHEMA public FROM agent_reader"))
+        owner_engine.dispose()
 
 
 @pytest.mark.parametrize(

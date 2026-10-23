@@ -4,6 +4,7 @@ from typing import Annotated
 import hmac
 import json
 import logging
+import re
 import time
 from uuid import uuid4
 from fastapi import FastAPI, Depends, HTTPException, Path, Query, Request
@@ -50,7 +51,8 @@ def create_app(settings=None, database=None):
 
     @app.middleware('http')
     async def request_log(request, call_next):
-        request_id = uuid4().hex
+        supplied_id = request.headers.get('X-Request-ID','')
+        request_id = supplied_id if re.fullmatch(r'[a-f0-9]{32}',supplied_id) else uuid4().hex
         started = time.perf_counter()
         status = 500
         try:

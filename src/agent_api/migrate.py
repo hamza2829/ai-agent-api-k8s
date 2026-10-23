@@ -35,12 +35,24 @@ def migrate(database_url=None, demo_bootstrap=False, read_password=None):
             password = read_password or os.environ['READ_DB_PASSWORD']
             if len(password) < 12:
                 raise ValueError('Demo reader password must have at least 12 characters')
-            exists = connection.execute("SELECT 1 FROM pg_roles WHERE rolname='agent_reader'").fetchone()
+            exists = connection.execute("""SELECT rolsuper,rolcreatedb,rolcreaterole,rolreplication,rolbypassrls
+              FROM pg_roles WHERE rolname='agent_reader'""").fetchone()
+            if exists and any(exists):
+                raise ValueError('Existing agent_reader has elevated role attributes; use a dedicated restricted demo role')
+            if exists:
+                unsafe = connection.execute("""SELECT
+                  EXISTS(SELECT 1 FROM pg_auth_members WHERE member=(SELECT oid FROM pg_roles WHERE rolname='agent_reader'))
+                  OR EXISTS(SELECT 1 FROM pg_class WHERE relname IN ('customers','orders','invoices') AND relowner=(SELECT oid FROM pg_roles WHERE rolname='agent_reader'))
+                  OR EXISTS(SELECT 1 FROM pg_namespace WHERE nspname='public' AND nspowner=(SELECT oid FROM pg_roles WHERE rolname='agent_reader'))
+                  OR EXISTS(SELECT 1 FROM pg_database WHERE datname=current_database() AND datdba=(SELECT oid FROM pg_roles WHERE rolname='agent_reader'))""").fetchone()[0]
+                if unsafe:
+                    raise ValueError('Existing agent_reader owns demo objects or has memberships; bootstrap refuses unsafe reuse')
             if not exists:
                 connection.execute('CREATE ROLE agent_reader LOGIN')
             connection.execute(sql.SQL('ALTER ROLE agent_reader PASSWORD {}').format(sql.Literal(password)))
-            connection.execute('REVOKE ALL ON SCHEMA public FROM PUBLIC')
+            connection.execute('REVOKE ALL ON SCHEMA public FROM PUBLIC,agent_reader')
             connection.execute('GRANT USAGE ON SCHEMA public TO agent_reader')
+            connection.execute('REVOKE ALL ON customers,orders,invoices FROM PUBLIC,agent_reader')
             connection.execute('GRANT SELECT ON customers,orders,invoices TO agent_reader')
             connection.execute("ALTER ROLE agent_reader SET default_transaction_read_only = on")
             print('Configured demo read-only agent_reader role')

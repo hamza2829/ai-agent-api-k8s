@@ -54,7 +54,7 @@ npm ci --prefix agent
 npm test --prefix agent
 ```
 
-Without `TEST_DATABASE_URL`, PostgreSQL checks are explicitly skipped. Without `API_BASE_URL`, the real-HTTP TypeScript E2E test is explicitly skipped. Unit tests still run. The local SQLite fixture is not the production database or a substitute for the PostgreSQL integration tests.
+Without `TEST_DATABASE_URL`, 7 PostgreSQL checks are explicitly skipped. Without `API_BASE_URL`, the real-HTTP TypeScript E2E test is explicitly skipped. Unit tests still run. The local SQLite fixture is not the production database or a substitute for the PostgreSQL integration tests.
 
 For a local scripted call, start the sandbox in terminal 1:
 
@@ -98,7 +98,7 @@ GitHub Actions builds the image on its hosted runner, creates kind, loads the im
 
 ## Results
 
-The implementation is being verified. The current local Python result is 34 passed tests; 6 real PostgreSQL checks require CI. All 40 TypeScript tests, including actual HTTP against the local SQLite sandbox, passed. Details are recorded in [docs/RESULTS.md](docs/RESULTS.md). This section will be updated with actual remote counts and proxy outcomes after the first CI run. The badge reports GitHub's current workflow state, not a fabricated result.
+The implementation is being verified. The current local Python result is 35 passed tests; 7 real PostgreSQL checks require CI. All 40 TypeScript tests, including actual HTTP against the local SQLite sandbox, passed. Details are recorded in [docs/RESULTS.md](docs/RESULTS.md). This section will be updated with actual remote counts and proxy outcomes after the final CI run. The badge reports GitHub's current workflow state, not a fabricated result.
 
 ## Limits and what I would change
 

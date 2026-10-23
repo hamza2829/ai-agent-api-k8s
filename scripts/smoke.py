@@ -50,7 +50,10 @@ def main() -> int:
         status, _, _ = request("/ready", authenticated=False)
         check("database_readiness", status == 200, {"status": status})
         status, _, body = request("/v1/customers/cus_001/orders")
-        check("authenticated_orders", status == 200 and isinstance(body, (list, dict)) and bool(body), {"status": status})
+        valid_orders = (isinstance(body,dict) and isinstance(body.get('items'),list)
+                        and len(body['items']) == 3 and body['items'][0].get('id') == 'ord_001'
+                        and all(row.get('customer_id') == 'cus_001' for row in body['items']))
+        check("authenticated_orders", status == 200 and valid_orders, {"status": status, "expected_rows":3})
         time.sleep(1.1)
         status, rejected_headers, _ = request("/v1/customers/cus_001/orders", authenticated=False)
         check("missing_key_rejected", status == 401, {"status": status})

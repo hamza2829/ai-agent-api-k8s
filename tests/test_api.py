@@ -133,6 +133,15 @@ def test_request_id_is_generated_and_not_taken_from_untrusted_header(client, aut
     assert request_id != headers["X-Request-ID"]
 
 
+def test_valid_proxy_request_id_is_preserved(client, auth_headers):
+    request_id = "0123456789abcdef0123456789abcdef"
+    response = client.get(
+        "/v1/customers/cus_001/orders", headers={**auth_headers, "X-Request-ID": request_id}
+    )
+    assert response.status_code == 200
+    assert response.headers["x-request-id"] == request_id
+
+
 def test_request_log_omits_api_key_and_query_values(client, auth_headers, caplog):
     caplog.set_level(logging.INFO)
     response = client.get(
